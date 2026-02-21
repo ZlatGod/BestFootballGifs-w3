@@ -52,6 +52,8 @@ const App = () => {
   const [walletAddress, setWalletAddress] = useState(null);
   const [inputValue, setInputValue] = useState('');
   const [gifList, setGifList] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState(null);
 
 
   const getConnectionProvider = () => {
@@ -79,10 +81,12 @@ const App = () => {
         setWalletAddress(response.publicKey.toString());
         getGifList();
       }
-      else { window.confirm('Solana object not found! Get a Phantom Wallet 👻. Click on OK to be redirected to the Phantom Wallet website. Phantom is the best wallet to hold Solana tokens. https://phantom.app/ ')
-      } 
-      } catch(error) {
+      else {
+        setStatusMessage({ type: 'warning', text: 'Phantom Wallet not found! Please install it from https://phantom.app/ to continue.' });
+      }
+    } catch(error) {
       console.error(error);
+      setStatusMessage({ type: 'danger', text: 'Failed to connect wallet. Please try again.' });
     }
   };
 
@@ -106,28 +110,51 @@ const App = () => {
     }
   };
 
+  const isValidGifUrl = (url) => {
+    try {
+      const parsed = new URL(url);
+      return (
+        (parsed.hostname.endsWith('giphy.com') || parsed.hostname.endsWith('media.giphy.com')) &&
+        parsed.pathname.toLowerCase().endsWith('.gif')
+      );
+    } catch {
+      return false;
+    }
+  };
+
   const sendGif = async () => {
     if (inputValue.length === 0) {
-      console.log("No gif link given!")
-      return
+      setStatusMessage({ type: 'warning', text: 'Please enter a GIF link.' });
+      return;
     }
+    if (!isValidGifUrl(inputValue)) {
+      setStatusMessage({ type: 'warning', text: 'Please enter a valid GIPHY GIF URL (e.g. https://media.giphy.com/media/.../giphy.gif).' });
+      return;
+    }
+    const gifUrl = inputValue;
     setInputValue('');
-    console.log('Gif link:', inputValue);
+    setIsLoading(true);
+    setStatusMessage(null);
+    console.log('Gif link:', gifUrl);
     try {
       const provider = getConnectionProvider();
       const program = new Program(idl, programID, provider);
 
-      await program.rpc.addGif(inputValue, {
+      await program.rpc.addGif(gifUrl, {
         accounts: {
           baseAccount: baseAccount.publicKey,
           user: provider.wallet.publicKey,
         },
       });
-      console.log("GIF successfully sent to program", inputValue)
-
+      console.log("GIF successfully sent to program", gifUrl);
+      setStatusMessage({ type: 'success', text: 'GIF submitted successfully!' });
       await getGifList();
     } catch (error) {
-      console.log("Error sending GIF:", error)
+      console.log("Error sending GIF:", error);
+      setInputValue(gifUrl);
+      setStatusMessage({ type: 'danger', text: 'Failed to submit GIF. Please try again.' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -163,7 +190,7 @@ const App = () => {
 
   const renderNotConnectedContainer = () => (
     <button
-      lassName="wallet-connect" variant="primary"
+      className="wallet-connect" variant="primary"
       onClick={connectWallet}
     >
       Connect to your Solana DevNet Wallet
@@ -271,30 +298,43 @@ const App = () => {
   
   const sendTip = async(id) => {
     console.log("Tipping:", id);
-
-    const fromWallet = walletAddress;
-    // could use a hashmap
-    const toWallet = gifList.filter(x => x.id === id).map(x => x.userAddress);
-    const amount = 1;
-    await sendTransaction(fromWallet, toWallet, amount);
-
-    sendTransaction(from, to, amount)    
+    setIsLoading(true);
+    setStatusMessage(null);
+    try {
+      const fromWallet = walletAddress;
+      // could use a hashmap
+      const toWallet = gifList.filter(x => x.id === id).map(x => x.userAddress);
+      const amount = 1;
+      await sendTransaction(fromWallet, toWallet[0], amount);
+      setStatusMessage({ type: 'success', text: 'Tip sent successfully!' });
+    } catch (error) {
+      console.log("Error sending tip:", error);
+      setStatusMessage({ type: 'danger', text: 'Failed to send tip. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
   }
   
   const incrementVote = async (id) => {
     console.log("UpVoting GifID:", id);
-    const provider = await getConnectionProvider();
-    const program = new Program(idl, programID, provider);
+    setIsLoading(true);
+    setStatusMessage(null);
     try {
+      const provider = getConnectionProvider();
+      const program = new Program(idl, programID, provider);
       await program.rpc.upvoteGif(id, {
         accounts: {
           baseAccount: baseAccount.publicKey,
           user: provider.wallet.publicKey
         }
       });
+      setStatusMessage({ type: 'success', text: 'Vote recorded!' });
       await getGifList();
     } catch (error) {
       console.log("Error UpVoting GifID:", id, error);
+      setStatusMessage({ type: 'danger', text: 'Failed to record vote. Please try again.' });
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -311,16 +351,29 @@ const App = () => {
     <div className="App">
       <div className="d-flex flex-column">
         <div id="page-content">
-          <div class="container text-center">
-            <Row class="row justify-content-center">
-              <div class="container">
-                <h1 class="mb-5 mt-5 fw-bold mt-4 text-white"> ⚽ Best Football GIFS</h1>
-                <p class="mb-0 lead text-white">
+          <div className="container text-center">
+            <Row className="row justify-content-center">
+              <div className="container">
+                <h1 className="mb-5 mt-5 fw-bold mt-4 text-white"> ⚽ Best Football GIFS</h1>
+                <p className="mb-0 lead text-white">
             Upload and view the latest and best football <a href ="https://giphy.com/" style={{ color: 'white' }} > GIFS </a> on the metaverse ✨
                 </p>
-                <p class="lead text-white">
+                <p className="lead text-white">
             Post the best GIFS and you can get upVotes 👍 or Tips 💰
                 </p>
+
+                {statusMessage && (
+                  <div className={`alert alert-${statusMessage.type} mx-auto w-50`} role="alert">
+                    {statusMessage.text}
+                  </div>
+                )}
+
+                {isLoading && (
+                  <div className="text-white mb-3">
+                    <div className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                    Processing transaction...
+                  </div>
+                )}
 
                 {!walletAddress && renderNotConnectedContainer()}
                 {walletAddress && renderConnectedContainer()}
@@ -329,7 +382,7 @@ const App = () => {
           </div>
         </div>
       </div>
-      <div id="sticky-footer" class="footer flex-shrink-0 py-0 bg-dark">
+      <div id="sticky-footer" className="footer flex-shrink-0 py-0 bg-dark">
         <span>Built on </span> <a href="https://solana.com"><Image alt="Solana Logo" className="logo-solana" src={solana_logo} fluid /></a> 
                <span>  <p> 
             <a href="https://twitter.com/IBRAKADABRAAAAA" style={{ color: 'white' }}
