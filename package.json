@@ -2,6 +2,7 @@
   "name": "app",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://ZlatGod.github.io/BestFootballGifs-w3",
   "dependencies": {
     "@project-serum/anchor": "^0.18.2",
     "@solana/wallet-adapter-base": "^0.7.0",
@@ -20,6 +21,8 @@
     "web-vitals": "^1.0.1"
   },
   "scripts": {
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
@@ -49,6 +52,7 @@
     "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-react": "^7.27.1",
     "eslint-plugin-react-hooks": "^4.3.0",
+    "gh-pages": "^6.3.0",
     "prettier": "^2.5.0"
   }
 }
